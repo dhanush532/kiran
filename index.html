@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="UTF-8" />
+  <!-- PWA / mobile meta -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#0288D1" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0B1C2C" />
+  <meta name="description" content="AquaDrop — offline water reminder & hydration tracker. Flutter-style Material PWA." />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="AquaDrop" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <title>AquaDrop — Water Reminder</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Flutter-style AppBar -->
+    <header class="app-bar">
+      <div class="app-bar-inner">
+        <img class="app-logo" src="./icons/icon-192.png" alt="AquaDrop logo" width="40" height="40" />
+        <div class="app-title">
+          <h1>AquaDrop</h1>
+          <p id="dateLine">Today</p>
+        </div>
+        <button id="installBtn" class="btn btn-tonal" type="button" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.6l2.7-2.7a1 1 0 1 1 1.4 1.4l-4.4 4.4a1 1 0 0 1-1.4 0L6.9 11.3a1 1 0 1 1 1.4-1.4L11 12.6V4a1 1 0 0 1 1-1Z"/><path fill="currentColor" d="M5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z"/></svg>
+          Install
+        </button>
+      </div>
+      <div id="iosInstallHint" class="ios-hint" hidden>
+        <span aria-hidden="true">🍎</span>
+        <span>On iPhone: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong> to install.</span>
+      </div>
+    </header>
+
+    <!-- In-app banners: catch-up, fallback, errors -->
+    <div id="bannerStack" aria-live="polite"></div>
+
+    <main id="main">
+      <!-- ============================ TODAY ============================ -->
+      <section id="view-today" class="view is-active" aria-label="Today">
+        <div class="card hero-card" id="progressCard">
+          <div class="progress-circle" id="progressCircle" role="img" aria-label="Today's hydration progress">
+            <div class="water" id="waterFill"></div>
+            <div class="progress-text">
+              <div id="progressPct">0%</div>
+              <div id="progressSub">0 / 2500 ml</div>
+            </div>
+          </div>
+          <p id="motivation" class="motivation">Let's get sipping! Every drop counts.</p>
+          <p id="todayTotal" class="today-total"></p>
+        </div>
+
+        <div class="card">
+          <h2>Quick add</h2>
+          <div class="qa-row" role="group" aria-label="Quick add amounts">
+            <button class="btn btn-filled qa-btn" type="button" data-ml="100">+100</button>
+            <button class="btn btn-filled qa-btn" type="button" data-ml="250">+250</button>
+            <button class="btn btn-filled qa-btn" type="button" data-ml="500">+500</button>
+          </div>
+          <div class="custom-row">
+            <label class="field">
+              <span id="customLabel">Custom (ml)</span>
+              <input id="customInput" type="number" inputmode="decimal" min="1" max="5000" step="1" placeholder="e.g. 300" />
+            </label>
+            <button id="customAdd" class="btn btn-tonal" type="button">Add</button>
+          </div>
+          <div class="row-between">
+            <button id="undoBtn" class="btn btn-outline" type="button">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z"/></svg>
+              Undo last
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Daily goal</h2>
+          <div class="segmented" role="group" aria-label="Units">
+            <button id="unitSegMl" class="seg-btn" type="button" aria-pressed="true">ml</button>
+            <button id="unitSegOz" class="seg-btn" type="button" aria-pressed="false">fl oz</button>
+          </div>
+          <div class="custom-row">
+            <label class="field">
+              <span id="goalLabel">Goal (ml)</span>
+              <input id="goalInput" type="number" inputmode="decimal" min="100" max="10000" step="50" />
+            </label>
+            <button id="goalSave" class="btn btn-tonal" type="button">Save</button>
+          </div>
+          <details class="calc">
+            <summary>Goal calculator (weight + activity)</summary>
+            <div class="calc-grid">
+              <label class="field">
+                <span>Weight (kg)</span>
+                <input id="calcWeight" type="number" inputmode="decimal" min="20" max="300" step="1" placeholder="e.g. 70" />
+              </label>
+              <label class="field">
+                <span>Activity</span>
+                <select id="calcActivity">
+                  <option value="sedentary">Rest day</option>
+                  <option value="light">Lightly active</option>
+                  <option value="moderate" selected>Moderately active</option>
+                  <option value="very">Very active / hot day</option>
+                </select>
+              </label>
+            </div>
+            <div class="row-between">
+              <button id="calcBtn" class="btn btn-outline" type="button">Suggest goal</button>
+              <button id="calcApply" class="btn btn-filled" type="button" hidden>Apply</button>
+            </div>
+            <p id="calcResult" class="calc-result" aria-live="polite"></p>
+          </details>
+        </div>
+
+        <div class="card">
+          <h2>Today's log</h2>
+          <p id="emptyToday" class="empty">Nothing logged yet — tap a quick-add button to start your streak!</p>
+          <ul id="entriesList" class="entries"></ul>
+        </div>
+      </section>
+
+      <!-- ============================ HISTORY ============================ -->
+      <section id="view-history" class="view" aria-label="History">
+        <div class="stats-grid">
+          <div class="stat"><span class="stat-num" id="statStreak">0</span><span class="stat-label">Day streak</span></div>
+          <div class="stat"><span class="stat-num" id="statBest">0</span><span class="stat-label">Best streak</span></div>
+          <div class="stat"><span class="stat-num" id="statAvg">0</span><span class="stat-label">Daily avg</span></div>
+          <div class="stat"><span class="stat-num" id="statWeek">0</span><span class="stat-label">This week</span></div>
+        </div>
+
+        <div class="card">
+          <h2>Last 7 days</h2>
+          <canvas id="weekChart" height="180" aria-label="Weekly intake bar chart" role="img"></canvas>
+          <p class="legend"><span class="swatch"></span> intake &nbsp;— - - goal</p>
+        </div>
+
+        <div class="card">
+          <div class="row-between">
+            <h2>Calendar</h2>
+            <div class="cal-nav">
+              <button id="calPrev" class="btn btn-icon" type="button" aria-label="Previous month">‹</button>
+              <button id="calToday" class="btn btn-tonal" type="button">This month</button>
+              <button id="calNext" class="btn btn-icon" type="button" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <p id="calTitle" class="cal-title"></p>
+          <div id="calGrid" class="cal-grid" role="grid" aria-label="Monthly completion calendar"></div>
+          <p id="calDetail" class="cal-detail"></p>
+        </div>
+
+        <div class="card">
+          <h2>Your data</h2>
+          <p class="muted">Everything stays on this device (IndexedDB). Export a backup any time.</p>
+          <div class="btn-grid">
+            <button id="exportJson" class="btn btn-tonal" type="button">Export JSON</button>
+            <button id="exportCsv" class="btn btn-tonal" type="button">Export CSV</button>
+            <button id="importBtn" class="btn btn-outline" type="button">Import JSON…</button>
+            <input id="importFile" type="file" accept="application/json,.json" hidden />
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ SETTINGS ============================ -->
+      <section id="view-settings" class="view" aria-label="Settings">
+        <div class="card">
+          <h2>Reminders</h2>
+          <p class="muted">Gentle nudges between your wake and sleep times. Nothing fires during quiet hours.</p>
+          <button id="enableRemBtn" class="btn btn-filled btn-block" type="button">Enable reminders</button>
+          <p id="permStatus" class="perm-status" aria-live="polite"></p>
+          <div id="iosRemHint" class="ios-hint" hidden>
+            <span aria-hidden="true">ⓘ</span>
+            <span>On iPhone, notifications only work after installing to the Home Screen (Share → Add to Home Screen), on iOS 16.4+.</span>
+          </div>
+          <div class="settings-grid">
+            <label class="field">
+              <span>Every</span>
+              <select id="intervalSel">
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60" selected>60 min</option>
+                <option value="90">90 min</option>
+                <option value="120">120 min</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Wake time</span>
+              <input id="wakeInput" type="time" value="08:00" />
+            </label>
+            <label class="field">
+              <span>Sleep time</span>
+              <input id="sleepInput" type="time" value="22:00" />
+            </label>
+          </div>
+          <label class="switch-row">
+            <span>Sound</span>
+            <input id="soundToggle" type="checkbox" checked />
+          </label>
+          <label class="switch-row">
+            <span>Vibration</span>
+            <input id="vibToggle" type="checkbox" checked />
+          </label>
+        </div>
+
+        <div class="card">
+          <h2>Appearance</h2>
+          <div class="segmented" role="group" aria-label="Theme">
+            <button class="seg-btn theme-btn" type="button" data-theme="light">Light</button>
+            <button class="seg-btn theme-btn" type="button" data-theme="dark">Dark</button>
+            <button class="seg-btn theme-btn" type="button" data-theme="system">System</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Storage</h2>
+          <p id="storageStatus" class="muted">Checking storage…</p>
+          <div class="btn-grid">
+            <button id="resetTodayBtn" class="btn btn-outline" type="button">Reset today</button>
+            <button id="clearAllBtn" class="btn btn-danger" type="button">Clear all data</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>About</h2>
+          <p class="muted">AquaDrop works fully offline. Your data never leaves this device. Fully reliable background reminders would need Web Push with a small server (VAPID keys) — listed as an optional future upgrade in the README.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Flutter-style BottomNavigationBar -->
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button class="nav-item is-active" type="button" data-view="today" aria-label="Today">
+        <span class="nav-pill">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2.7 6.7 8.1a7.6 7.6 0 1 0 10.6 0L12 2.7Zm0 4.1 3 3.1a4.4 4.4 0 1 1-6 0l3-3.1Z"/></svg>
+        </span>
+        <span class="nav-label">Today</span>
+      </button>
+      <button class="nav-item" type="button" data-view="history" aria-label="History">
+        <span class="nav-pill">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M5 20a1 1 0 0 1-1-1v-6a1 1 0 0 1 2 0v6a1 1 0 0 1-1 1Zm6 0a1 1 0 0 1-1-1V9a1 1 0 0 1 2 0v10a1 1 0 0 1-1 1Zm6 0a1 1 0 0 1-1-1V5a1 1 0 0 1 2 0v14a1 1 0 0 1-1 1Z"/></svg>
+        </span>
+        <span class="nav-label">History</span>
+      </button>
+      <button class="nav-item" type="button" data-view="settings" aria-label="Settings">
+        <span class="nav-pill">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5Zm9 3.5a7.8 7.8 0 0 0-.1-1.3l2-1.5-2-3.4-2.3 1a8 8 0 0 0-2.2-1.3L16 2H8l-.4 2.5a8 8 0 0 0-2.2 1.3l-2.3-1-2 3.4 2 1.5a7.8 7.8 0 0 0 0 2.6l-2 1.5 2 3.4 2.3-1a8 8 0 0 0 2.2 1.3L8 22h8l.4-2.5a8 8 0 0 0 2.2-1.3l2.3 1 2-3.4-2-1.5c.06-.43.1-.86.1-1.3ZM12 17.5A5.5 5.5 0 1 1 12 6.5a5.5 5.5 0 0 1 0 11Z"/></svg>
+        </span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <canvas id="confetti" aria-hidden="true"></canvas>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="./db.js"></script>
+  <script src="./reminders.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
