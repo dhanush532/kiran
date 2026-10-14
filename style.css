@@ -382,6 +382,8 @@ main {
 /* ------------------------------- bottom nav ------------------------------ */
 .bottom-nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  transform: translateZ(0); /* own compositor layer: stays glued in place
+    when the mobile URL bar shows/hides and the visual viewport resizes */
   display: grid; grid-template-columns: repeat(3, 1fr);
   background: var(--md-surface-container);
   border-radius: 24px 24px 0 0;

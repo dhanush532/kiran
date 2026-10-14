@@ -64,15 +64,16 @@ Then open **http://localhost:8000** (or the port shown).
 6. Export JSON/CSV → files download; Import JSON → entries merge after confirm.
 7. DevTools → Application → Service Workers + offline checkbox → reload, app still works.
 8. `node --check app.js db.js reminders.js sw.js` → no syntax errors.
+9. Closed-app check (Chrome/Edge, app installed): enable reminders, close all tabs, wait past one interval → a "Time to hydrate" notification arrives; none arrives during quiet hours or right after logging.
 
-## Important limitation (honest note)
+## Background reminders (including closed app)
 
-**Browsers cannot reliably fire scheduled notifications when the app is fully closed without a push server.** This app implements reminders as:
+Reminders work in two layers:
 
-- `setTimeout`-based scheduling while open/backgrounded + display via the service worker,
-- re-calculation on every open and `visibilitychange`,
-- a **single** catch-up banner ("You haven't logged water in ~3 hours") instead of a notification pile,
-- a Settings note: *"For the most reliable reminders, keep the app installed and open in the background."*
+1. **In-app timers** (`setTimeout` + service-worker display) while the app is open or backgrounded; re-calculated on every open and `visibilitychange`, plus a **single** catch-up banner instead of a notification pile.
+2. **Closed-app checks** via Periodic Background Sync: the service worker wakes itself up — with **every tab closed** — and shows a notification only when one is actually due (quiet hours + smart-skip respected, same as in-app). This needs a **Chromium browser (Chrome/Edge, Android or desktop) with the app installed**; the browser grants it automatically to installed apps.
+
+Honest note: outside Chromium, or with the browser fully quit / battery-restricted by the OS, nothing on the web can wake the app — guaranteed delivery in those cases would still need Web Push with a small server (optional upgrade below).
 
 **Optional future upgrade — Web Push with a small server (not built):**
 

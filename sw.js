@@ -14,7 +14,7 @@
 
 'use strict';
 
-var CACHE_NAME = 'aquadrop-v2';
+var CACHE_NAME = 'aquadrop-v3';
 
 // Relative URLs resolve against the worker's own location, so deploys
 // under a sub-path (e.g. GitHub Pages /repo-name/) keep working.
@@ -34,6 +34,9 @@ var APP_SHELL = [
 // db.js defines a global `DB` on `self` with zero DOM dependencies,
 // so the worker can log water straight into IndexedDB on notification tap.
 try { importScripts('./db.js'); } catch (e) { /* cached on next fetch */ }
+// reminders.js is DOM-free at load (it only defines self.Reminders), so the
+// worker can reuse its quiet-hours / smart-skip logic for background checks.
+try { importScripts('./reminders.js'); } catch (e) { /* cached on next fetch */ }
 
 /* ------------------------------- install ------------------------------- */
 
@@ -204,6 +207,47 @@ self.addEventListener('notificationclick', function (event) {
 });
 
 self.addEventListener('notificationclose', function () { /* no-op */ });
+
+/* ----------------- closed-app checks: Periodic Background Sync -----------------
+ * The browser wakes this worker on its own cadence — even with every tab
+ * closed — on Chromium (Chrome/Edge, Android + desktop) with the app
+ * installed. We re-check quiet hours + the last log and show AT MOST one
+ * notification, and only when a reminder is actually due (same smart-skip
+ * rule as the in-app timers). Everything is best-effort and guarded.
+ * ------------------------------------------------------------------------------ */
+self.addEventListener('periodicsync', function (event) {
+  if (event.tag !== 'water-check') return;
+  event.waitUntil((function () {
+    try {
+      if (typeof DB === 'undefined' || typeof Reminders === 'undefined') {
+        return Promise.resolve();
+      }
+      return DB.getAllSettings().then(function (s) {
+        var settings = {
+          enabled: !!s.remindersEnabled,
+          intervalMin: Number(s.intervalMin) || 60,
+          wake: s.wake || '08:00',
+          sleep: s.sleep || '22:00'
+        };
+        if (!settings.enabled) return null;
+        var now = new Date();
+        if (Reminders.isQuiet(now, settings)) return null; // quiet hours
+        return DB.getEntriesByDate(localDateKey(now)).then(function (rows) {
+          var last = 0;
+          rows.forEach(function (r) { if (r.ts > last) last = r.ts; });
+          var intervalMs = Math.max(5, settings.intervalMin) * 60 * 1000;
+          if (last && now.getTime() - last < intervalMs) return null; // smart skip
+          return self.registration.showNotification(
+            'Time to hydrate',
+            reminderOptions('Take a sip of water to stay on track.')
+          );
+        });
+      }).catch(function () { /* background checks must never throw */ });
+    } catch (e) {
+      return Promise.resolve();
+    }
+  })());
+});
 
 /* ------------------- future upgrade: Web Push (VAPID) -------------------
  * Fully reliable background reminders need a small push server:

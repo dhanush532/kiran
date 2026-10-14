@@ -103,7 +103,8 @@
     entriesToday: [],
     deferredPrompt: null,
     calCursor: null,          // Date at 1st of displayed month
-    pendingCalcMl: null
+    pendingCalcMl: null,
+    bgSync: false             // periodic background sync active (closed-app checks)
   };
 
   function engineSettings() {
@@ -586,9 +587,12 @@
       return;
     }
     btn.textContent = 'Disable reminders';
+    var bgNote = state.bgSync
+      ? ' Background checks on — reminders can fire while the app is closed (needs Chrome/Edge + installed app).'
+      : '';
     el.textContent = perm === 'granted'
       ? 'Reminders ON • every ' + state.settings.intervalMin + ' min • ' +
-        state.settings.wake + '–' + state.settings.sleep + ' (quiet otherwise).'
+        state.settings.wake + '–' + state.settings.sleep + ' (quiet otherwise).' + bgNote
       : 'Reminders ON (in-app banners + chime fallback) • every ' +
         state.settings.intervalMin + ' min • ' + state.settings.wake + '–' + state.settings.sleep + '.';
   }
@@ -620,6 +624,39 @@
     }
   }
 
+  /**
+   * Closed-app layer: Periodic Background Sync lets the SERVICE WORKER wake
+   * itself (Chromium + installed app) and notify with every tab closed.
+   * Unsupported browsers simply resolve false and keep the in-app timers.
+   */
+  function registerPeriodicSync() {
+    try {
+      if (!('serviceWorker' in navigator)) return Promise.resolve(false);
+      return navigator.serviceWorker.ready.then(function (reg) {
+        if (!reg.periodicSync || typeof reg.periodicSync.register !== 'function') {
+          return false;
+        }
+        var ms = Math.max(5, Number(state.settings.intervalMin) || 60) * 60 * 1000;
+        return reg.periodicSync.register('water-check', { minInterval: ms }).then(function () {
+          return true;
+        }).catch(function () { return false; });
+      }).catch(function () { return false; });
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+  }
+
+  function unregisterPeriodicSync() {
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.ready.then(function (reg) {
+        if (reg.periodicSync && typeof reg.periodicSync.unregister === 'function') {
+          reg.periodicSync.unregister('water-check').catch(function () { /* ignore */ });
+        }
+      }).catch(function () { /* ignore */ });
+    } catch (e) { /* ignore */ }
+  }
+
   /** Single catch-up message on open / return — never a pile of notifications. */
   function checkCatchUp() {
     try {
@@ -643,10 +680,17 @@
       updatePermStatus();
       if (on) {
         reschedule();
+        registerPeriodicSync().then(function (ok) {
+          state.bgSync = ok;
+          updatePermStatus();
+        });
         checkCatchUp();
         toast('Reminders on — stay hydrated!');
       } else {
         Reminders.cancel();
+        unregisterPeriodicSync();
+        state.bgSync = false;
+        updatePermStatus();
         toast('Reminders off.');
       }
     });
@@ -799,11 +843,9 @@
     });
     if (name === 'history') renderHistory();
     if (name === 'settings') renderSettings();
-    try {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {
-      try { window.scrollTo(0, 0); } catch (e2) { /* very old browser: ignore */ }
-    }
+    // Instant jump (not smooth): keeps the fixed bottom nav visually glued
+    // in place when switching tabs instead of travelling with the scroll.
+    try { window.scrollTo(0, 0); } catch (e) { /* very old browser: ignore */ }
   }
 
   /* ================= 6. PWA: SW, install, iOS ================= */
@@ -838,6 +880,14 @@
         navigator.serviceWorker.ready.then(function (reg) {
           if (reg.waiting) reg.waiting.postMessage({ type: 'skip-waiting' });
         }).catch(function () { /* ignore */ });
+      }
+      // Closed-app layer: reminders left on in a previous session get their
+      // background checks re-armed (in-app timers are re-armed in init too).
+      if (state.settings.remindersEnabled) {
+        registerPeriodicSync().then(function (ok) {
+          state.bgSync = ok;
+          updatePermStatus();
+        });
       }
     }).catch(function (err) {
       showBanner('warn', 'Offline mode unavailable (service worker failed). The app still works while open. ' +
@@ -1012,6 +1062,12 @@
       saveSetting('intervalMin', Number(e.target.value) || 60).then(function () {
         updatePermStatus();
         reschedule();
+        if (state.settings.remindersEnabled) {
+          registerPeriodicSync().then(function (ok) {
+            state.bgSync = ok;
+            updatePermStatus();
+          });
+        }
       });
     });
     $('wakeInput').addEventListener('change', function (e) {
